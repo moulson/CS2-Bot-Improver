@@ -16,7 +16,7 @@ namespace BotAimImprover;
 public class BotAimImprover : BasePlugin
 {
     public override string ModuleName => "BotAimImprover";
-    public override string ModuleVersion => "2.0.1";
+    public override string ModuleVersion => "2.0.2";
     public override string ModuleAuthor => "ed0ard";
     public override string ModuleDescription => "Restores intelligent aim part selection for CS2 bots.";
 
@@ -257,12 +257,12 @@ public class BotAimImprover : BasePlugin
                 return HookResult.Continue;
 
             // 5) Select the priority order based on aim mode and weapon, then pick.
-            // head: all weapons -> Head. body: all weapons -> Body.
+            // head: awp -> others -> Head. body: all weapons -> Body.
             // mixed: body-first weapons -> Body, others -> Jaw.
             bool isBodyWeapon = wpn != null && _bodyFirstWeapons.Contains(wpn);
             int[] order = _aimMode switch
             {
-                AimMode.HEAD => _priorityHead,
+                AimMode.HEAD => wpn == "weapon_awp" ? _priorityBody : _priorityHead,
                 AimMode.BODY => _priorityBody,
                 _            => isBodyWeapon ? _priorityBody : _priorityJaw, // MIXED
             };
