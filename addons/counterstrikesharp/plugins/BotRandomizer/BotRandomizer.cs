@@ -336,11 +336,21 @@ public class BotRandomizerPlugin : BasePlugin
             player.MusicKitID = kitId;
             Utilities.SetStateChanged(player, "CCSPlayerController", "m_iMusicKitID");
 
-            ReplaceKnife(pawn, knife.DefIndex, knifePaint);
-            ApplyGloves(player, pawn, glove.DefIndex, glove.PaintKit);
+            ApplyWearables(player, pawn, knife.DefIndex, knifePaint, glove.DefIndex, glove.PaintKit);
+            AddTimer(0.10f, () => ApplyWearables(player, pawn, knife.DefIndex, knifePaint, glove.DefIndex, glove.PaintKit));
+            AddTimer(0.25f, () => ApplyWearables(player, pawn, knife.DefIndex, knifePaint, glove.DefIndex, glove.PaintKit));
         });
 
         return HookResult.Continue;
+    }
+
+    private void ApplyWearables(CCSPlayerController player, CCSPlayerPawn pawn, ushort knifeDefIndex, int knifePaintKit, ushort gloveDefIndex, int glovePaintKit)
+    {
+        if (player == null || !player.IsValid || pawn == null || !pawn.IsValid)
+            return;
+
+        ReplaceKnife(pawn, knifeDefIndex, knifePaintKit);
+        ApplyGloves(player, pawn, gloveDefIndex, glovePaintKit);
     }
 
     private void ReplaceKnife(CCSPlayerPawn pawn, ushort defIndex, int paintKit)
