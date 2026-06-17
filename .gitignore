@@ -12,3 +12,5 @@ addons/counterstrikesharp/plugins/NadeSystem/libs/
 addons/counterstrikesharp/plugins/NadeSystem/obj/
 addons/counterstrikesharp/plugins/RoundDamageRecap/obj/
 addons/counterstrikesharp/plugins/disabled/CS2_ExecAfter/obj/
+**/bin/
+**/obj/

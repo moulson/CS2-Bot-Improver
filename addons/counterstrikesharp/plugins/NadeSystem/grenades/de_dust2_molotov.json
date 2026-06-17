@@ -1071,27 +1071,6 @@
     "description": null
   },
   {
-    "id": "02379968-1bc3-4b8a-beb4-6feb56c62d36",
-    "mapName": "de_dust2",
-    "grenadeType": "molotov",
-    "projectilePosition": {
-      "x": -283.70093,
-      "y": 1354.0791,
-      "z": -48.753414
-    },
-    "projectileVelocity": {
-      "x": -365.69342,
-      "y": 367.56772,
-      "z": 432.189
-    },
-    "landingPosition": {
-      "x": -291.2855,
-      "y": 1781.8318,
-      "z": 15.248872
-    },
-    "description": null
-  },
-  {
     "id": "324f0ff4-2801-4853-ac72-5c8256a7ba9d",
     "mapName": "de_dust2",
     "grenadeType": "molotov",
@@ -1970,6 +1949,27 @@
       "x": -1451.7465,
       "y": 2358.9756,
       "z": 1.7371668
+    },
+    "description": null
+  },
+  {
+    "id": "528e5629-0861-46b9-94d8-ed31b2161631",
+    "mapName": "de_dust2",
+    "grenadeType": "molotov",
+    "projectilePosition": {
+      "x": -283.83542,
+      "y": 1354.2056,
+      "z": -48.97884
+    },
+    "projectileVelocity": {
+      "x": -371.36307,
+      "y": 372.90454,
+      "z": 422.67798
+    },
+    "landingPosition": {
+      "x": -288.6946,
+      "y": 1780.1094,
+      "z": 2.270409
     },
     "description": null
   }

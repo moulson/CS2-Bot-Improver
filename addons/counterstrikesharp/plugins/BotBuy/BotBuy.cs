@@ -12,7 +12,7 @@ namespace BotBuyPatch;
 public sealed class BotBuyPatch : BasePlugin
 {
     public override string ModuleName        => "BotBuyPatch";
-    public override string ModuleVersion     => "1.0.9";
+    public override string ModuleVersion     => "1.0.11";
     public override string ModuleAuthor      => "ed0ard";
     public override string ModuleDescription => "Enable bots to take more buy options";
 
@@ -263,7 +263,7 @@ public sealed class BotBuyPatch : BasePlugin
 
                 float roll = Random.Shared.NextSingle();
 
-                if (roll < 0.15f)
+                if (roll < 0.05f)
                 {
                     if (p.Team == CsTeam.CounterTerrorist)
                     {
@@ -276,7 +276,7 @@ public sealed class BotBuyPatch : BasePlugin
                     }
                     Swap(p, "weapon_ssg08", "weapon_deagle");
                 }
-                else if (roll < 0.30f)
+                else if (roll < 0.45f)
                 {
                     if (p.Team == CsTeam.Terrorist)
                         Swap(p, "weapon_ssg08", "weapon_mac10");
@@ -334,8 +334,8 @@ public sealed class BotBuyPatch : BasePlugin
                 if (p.InGameMoneyServices == null) continue;
 
                 bool isPoor = _poorPlayersByTeam[CsTeam.CounterTerrorist].Contains(p);
-                // Don't buy defuser if poor
-                if (isPoor && p.InGameMoneyServices.Account != 500)
+                // Don't buy defuser if poor // Exception: pistol round with 500 left
+                if (isPoor && !(IsFirstRoundOfHalf() && p.InGameMoneyServices.Account == 500))
                     continue;
 
                 if (p.InGameMoneyServices.Account < 400)
