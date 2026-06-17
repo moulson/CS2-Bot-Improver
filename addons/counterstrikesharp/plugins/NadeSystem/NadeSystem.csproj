@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>NadeSystem</RootNamespace>
     <AssemblyName>NadeSystem</AssemblyName>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -9,11 +9,24 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Exclude a local Ray-Trace clone if present (build-time reference only). -->
+  <ItemGroup>
+    <Compile          Remove="Ray-Trace\**" />
+    <None             Remove="Ray-Trace\**" />
+    <EmbeddedResource Remove="Ray-Trace\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.368" />
+    <!-- Compile-time only; server provides shared/RayTraceApi/RayTraceApi.dll at runtime. -->
     <Reference Include="RayTraceApi">
       <HintPath>libs/RayTraceApi.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
+
+  <Target Name="RemoveSharedAssembliesFromOutput" AfterTargets="Build">
+    <Delete Files="$(OutDir)RayTraceApi.dll;$(OutDir)RayTraceApi.pdb;$(OutDir)RayTraceApi.deps.json" />
+  </Target>
 
 </Project>

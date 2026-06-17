@@ -1,0 +1,14 @@
+addons/counterstrikesharp/plugins/BotAI/obj/
+addons/counterstrikesharp/plugins/BotAI_for_Linux/obj/
+addons/counterstrikesharp/plugins/BotAimImprover/obj/
+addons/counterstrikesharp/plugins/BotAimImprover_for_Linux/obj/
+addons/counterstrikesharp/plugins/BotBuy/obj/
+addons/counterstrikesharp/plugins/BotRandomizer/obj/
+addons/counterstrikesharp/plugins/BotState/obj/
+addons/counterstrikesharp/plugins/NadeSystem/.vs/
+addons/counterstrikesharp/plugins/NadeSystem/Ray-Trace/
+addons/counterstrikesharp/plugins/NadeSystem/bin/
+addons/counterstrikesharp/plugins/NadeSystem/libs/
+addons/counterstrikesharp/plugins/NadeSystem/obj/
+addons/counterstrikesharp/plugins/RoundDamageRecap/obj/
+addons/counterstrikesharp/plugins/disabled/CS2_ExecAfter/obj/

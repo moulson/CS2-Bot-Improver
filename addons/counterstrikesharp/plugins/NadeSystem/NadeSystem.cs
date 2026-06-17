@@ -101,7 +101,7 @@ public class RoundCounter
 public class NadeSystemPlugin : BasePlugin
 {
     public override string ModuleName    => "NadeSystem";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "1.1.0";
     public override string ModuleAuthor  => "ed0ard";
 
     // grenades folder lives inside the plugin directory
@@ -119,6 +119,7 @@ public class NadeSystemPlugin : BasePlugin
     private float                 _freezeEndTime     = 0f;
     private Dictionary<uint, int> _roundSpendPerBot  = new();
     private HashSet<uint>         _poorBots          = new();
+    private int                   _grenadeBuyBotsRemaining;
     // flash immunity
     private Dictionary<uint, float> _botFlashImmunityUntil = new();
     // Ray-Trace interface
@@ -213,6 +214,22 @@ public class NadeSystemPlugin : BasePlugin
         ["decoy"]   = 0,
     };
 
+    // Per-bot carry limits for the round (pickups included)
+    private static readonly Dictionary<string, int> MaxGrenadesPerBot =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["flash"]   = 2,
+        ["smoke"]   = 1,
+        ["he"]      = 1,
+        ["molotov"] = 1,
+    };
+
+    private static readonly string[] AllGrenadeWeaponNames =
+    {
+        "weapon_flashbang", "weapon_smokegrenade", "weapon_hegrenade",
+        "weapon_molotov", "weapon_incgrenade",
+    };
+
     // ── Native grenade factory functions ──────────────────────
     //
     // CreateEntityByName produces a physically valid projectile but
@@ -224,29 +241,14 @@ public class NadeSystemPlugin : BasePlugin
     // Signatures working on Linux + Windows as of CS2 build examined.
     // These may need re-finding after CS2 updates.
 
-    // CSmokeGrenadeProjectile::Create(pos, ang, vel, vel, owner, itemDef, team)
-    private static readonly MemoryFunctionWithReturn<
-        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, int, CSmokeGrenadeProjectile>
-        _smokeCreate = new(
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                ? @"55 4C 89 C1 48 89 E5 41 57 45 89 CF 41 56 49 89 FE"
-                : @"48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 57 41 56 41 57 48 81 EC ? ? ? ? 48 8B B4 24 ? ? ? ? 4D 8B F8");
-
-    // CHEGrenadeProjectile::Create(pos, ang, vel, vel, owner, itemDef)
-    private static readonly MemoryFunctionWithReturn<
-        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CHEGrenadeProjectile>
-        _heCreate = new(
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                ? "55 4C 89 C1 48 89 E5 41 57 49 89 D7"
-                : "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 50 48 8B AC 24 80 00 00 00 49 8B F8");
-
-    // CMolotovProjectile::Create(pos, ang, vel, vel, owner, itemDef)
-    private static readonly MemoryFunctionWithReturn<
-        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CMolotovProjectile>
-        _molotovCreate = new(
-            RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                ? "55 48 8D 05 ? ? ? ? 48 89 E5 41 57 41 56 41 55 41 54 49 89 FC 53 48 81 EC ? ? ? ? 4C 8D 35"
-                : "48 8B C4 48 89 58 10 4C 89 40 18 48 89 48 08");
+    // Initialized in Load() so a signature miss does not abort plugin startup.
+    private static MemoryFunctionWithReturn<
+        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, int, CSmokeGrenadeProjectile>? _smokeCreate;
+    private static MemoryFunctionWithReturn<
+        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CHEGrenadeProjectile>? _heCreate;
+    private static MemoryFunctionWithReturn<
+        IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CMolotovProjectile>? _molotovCreate;
+    private static bool _nativeNadesAvailable;
 
     // ═══════════════════════════════════════════════════════════
     //  Load
@@ -254,6 +256,8 @@ public class NadeSystemPlugin : BasePlugin
 
     public override void Load(bool hotReload)
     {
+        TryInitNativeGrenadeFactories();
+
         Directory.CreateDirectory(DataDir);
         LoadDb();
 
@@ -276,7 +280,42 @@ public class NadeSystemPlugin : BasePlugin
         
         AddCommand("bot_nades", "Control bots' nade throw mode (off/normal/more/max)", CmdBotNades);
         
-        Server.PrintToConsole($"[NadeSystem] Loaded — {_db.Count} grenades in DB.");
+        Server.PrintToConsole(
+            $"[NadeSystem] Loaded — {_db.Count} grenades in DB, native factories={_nativeNadesAvailable}.");
+    }
+
+    private static void TryInitNativeGrenadeFactories()
+    {
+        if (_nativeNadesAvailable) return;
+
+        try
+        {
+            _smokeCreate = new MemoryFunctionWithReturn<
+                IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, int, CSmokeGrenadeProjectile>(
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                    ? @"55 4C 89 C1 48 89 E5 41 57 45 89 CF 41 56 49 89 FE"
+                    : @"48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 57 41 56 41 57 48 81 EC ? ? ? ? 48 8B B4 24 ? ? ? ? 4D 8B F8");
+
+            _heCreate = new MemoryFunctionWithReturn<
+                IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CHEGrenadeProjectile>(
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                    ? "55 4C 89 C1 48 89 E5 41 57 49 89 D7"
+                    : "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 50 48 8B AC 24 80 00 00 00 49 8B F8");
+
+            _molotovCreate = new MemoryFunctionWithReturn<
+                IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CMolotovProjectile>(
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                    ? "55 48 8D 05 ? ? ? ? 48 89 E5 41 57 41 56 41 55 41 54 49 89 FC 53 48 81 EC ? ? ? ? 4C 8D 35"
+                    : "48 8B C4 48 89 58 10 4C 89 40 18 48 89 48 08");
+
+            _nativeNadesAvailable = true;
+        }
+        catch (Exception ex)
+        {
+            _nativeNadesAvailable = false;
+            Server.PrintToConsole(
+                $"[NadeSystem] WARNING: Native smoke/he/molotov factories unavailable: {ex.Message}");
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -325,6 +364,197 @@ public class NadeSystemPlugin : BasePlugin
             .Where(g => string.Equals(g.MapName, Server.MapName, StringComparison.OrdinalIgnoreCase))
             .ToList();
         Server.PrintToConsole($"[NadeSystem] Loaded {loaded} grenades from {DataDir}");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  Bot grenade inventory (buy / pickup / consume)
+    // ═══════════════════════════════════════════════════════════
+
+    private static string NormalizeGrenadeType(string gtype)
+    {
+        gtype = gtype.ToLowerInvariant();
+        return gtype is "incgrenade" ? "molotov" : gtype;
+    }
+
+    private static IEnumerable<string> GetWeaponNamesForType(string gtype, bool isCT)
+    {
+        return NormalizeGrenadeType(gtype) switch
+        {
+            "flash"   => new[] { "weapon_flashbang" },
+            "smoke"   => new[] { "weapon_smokegrenade" },
+            "he"      => new[] { "weapon_hegrenade" },
+            "molotov" => isCT ? new[] { "weapon_incgrenade" } : new[] { "weapon_molotov" },
+            _         => Array.Empty<string>(),
+        };
+    }
+
+    private int CountBotGrenades(CCSPlayerController bot, string gtype)
+    {
+        return CountAllBotGrenades(bot).GetValueOrDefault(NormalizeGrenadeType(gtype));
+    }
+
+    private Dictionary<string, int> CountAllBotGrenades(CCSPlayerController bot)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["flash"] = 0, ["smoke"] = 0, ["he"] = 0, ["molotov"] = 0,
+        };
+
+        var pawn = bot.PlayerPawn?.Value;
+        if (pawn?.WeaponServices == null) return counts;
+
+        bool isCT = bot.TeamNum == (int)CsTeam.CounterTerrorist;
+        foreach (var wHandle in pawn.WeaponServices.MyWeapons)
+        {
+            var weapon = wHandle.Value;
+            if (weapon == null) continue;
+            string name = weapon.DesignerName;
+            if (name == "weapon_flashbang") counts["flash"]++;
+            else if (name == "weapon_smokegrenade") counts["smoke"]++;
+            else if (name == "weapon_hegrenade") counts["he"]++;
+            else if (name is "weapon_molotov" or "weapon_incgrenade") counts["molotov"]++;
+        }
+
+        return counts;
+    }
+
+    private int GetMaxGrenades(string gtype) =>
+        MaxGrenadesPerBot.TryGetValue(NormalizeGrenadeType(gtype), out int max) ? max : 0;
+
+    private bool BotHasGrenade(CCSPlayerController bot, string gtype) =>
+        CountBotGrenades(bot, gtype) > 0;
+
+    private bool CanAddGrenade(CCSPlayerController bot, string gtype) =>
+        CountBotGrenades(bot, gtype) < GetMaxGrenades(gtype);
+
+    private bool ConsumeBotGrenade(CCSPlayerController bot, string gtype)
+    {
+        bool isCT = bot.TeamNum == (int)CsTeam.CounterTerrorist;
+        foreach (var weaponName in GetWeaponNamesForType(gtype, isCT))
+        {
+            if (bot.RemoveItemByDesignerName(weaponName))
+                return true;
+        }
+        return false;
+    }
+
+    private void StripAllBotGrenades(CCSPlayerController bot)
+    {
+        var pawn = bot.PlayerPawn?.Value;
+        if (pawn?.WeaponServices == null) return;
+
+        var grenadeNames = new HashSet<string>(AllGrenadeWeaponNames, StringComparer.OrdinalIgnoreCase);
+        var toRemove = new List<CBasePlayerWeapon>();
+        foreach (var wHandle in pawn.WeaponServices.MyWeapons)
+        {
+            var weapon = wHandle.Value;
+            if (weapon == null || !weapon.IsValid) continue;
+            if (grenadeNames.Contains(weapon.DesignerName))
+                toRemove.Add(weapon);
+        }
+        foreach (var weapon in toRemove)
+            pawn.RemovePlayerItem(weapon);
+    }
+
+    private void EnforceGrenadeLimits(CCSPlayerController bot)
+    {
+        foreach (var entry in MaxGrenadesPerBot)
+        {
+            while (CountBotGrenades(bot, entry.Key) > entry.Value)
+                ConsumeBotGrenade(bot, entry.Key);
+        }
+    }
+
+    private void EnforceGrenadeLimitsForAll()
+    {
+        if (_grenadeBuyBotsRemaining > 0) return;
+
+        var rules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault();
+        if (rules?.GameRules?.FreezePeriod == true) return;
+
+        foreach (var bot in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+        {
+            if (!bot.IsValid || !bot.IsBot || !bot.PawnIsAlive) continue;
+            EnforceGrenadeLimits(bot);
+        }
+    }
+
+    private void BuyBotGrenades(CCSPlayerController bot)
+    {
+        if (_botNadesMode == "off") return;
+        if (bot.HasBeenControlledByPlayerThisRound) return;
+
+        var money = bot.InGameMoneyServices;
+        if (money == null) return;
+
+        bool isCT     = bot.TeamNum == (int)CsTeam.CounterTerrorist;
+        bool isPoor   = _poorBots.Contains((uint)bot.Index);
+        var costTable = isCT ? CostCT : CostT;
+        int spendCap  = GetRoundSpendCap(isCT, isPoor);
+        uint botIdx   = (uint)bot.Index;
+        int spent     = _roundSpendPerBot.TryGetValue(botIdx, out int existingSpend) ? existingSpend : 0;
+
+        string[] buyOrder = isPoor && !IsPistolRound()
+            ? new[] { "flash", "flash", "smoke" }
+            : new[] { "flash", "flash", "smoke", "he", "molotov" };
+
+        var owned = CountAllBotGrenades(bot);
+
+        foreach (var rawType in buyOrder)
+        {
+            string gtype = NormalizeGrenadeType(rawType);
+            if (owned.GetValueOrDefault(gtype) >= GetMaxGrenades(gtype)) continue;
+            if (!costTable.TryGetValue(gtype, out int cost)) continue;
+            if (spent + cost > spendCap) continue;
+            if (money.Account < cost) continue;
+
+            string weaponName = GetWeaponNamesForType(gtype, isCT).First();
+            bot.GiveNamedItem(weaponName);
+            money.Account -= cost;
+            Utilities.SetStateChanged(bot, "CCSPlayerController", "m_pInGameMoneyServices");
+            spent += cost;
+            owned[gtype]++;
+        }
+
+        _roundSpendPerBot[botIdx] = spent;
+    }
+
+    private void ScheduleBotGrenadeLoadouts()
+    {
+        if (_botNadesMode == "off") return;
+
+        var bots = Utilities
+            .FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller")
+            .Where(b => b.IsValid && b.IsBot && b.PawnIsAlive)
+            .ToList();
+
+        _grenadeBuyBotsRemaining = bots.Count;
+        if (bots.Count == 0) return;
+
+        // Stagger per-bot work so buy phase does not stall the server thread.
+        const float staggerSec = 0.08f;
+        for (int i = 0; i < bots.Count; i++)
+        {
+            var bot = bots[i];
+            float delay = i * staggerSec;
+            AddTimer(delay, () => PrepareSingleBotGrenadeLoadout(bot));
+        }
+    }
+
+    private void PrepareSingleBotGrenadeLoadout(CCSPlayerController bot)
+    {
+        try
+        {
+            if (_botNadesMode == "off") return;
+            if (!bot.IsValid || !bot.IsBot || !bot.PawnIsAlive) return;
+            StripAllBotGrenades(bot);
+            BuyBotGrenades(bot);
+        }
+        finally
+        {
+            if (_grenadeBuyBotsRemaining > 0)
+                _grenadeBuyBotsRemaining--;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -523,7 +753,10 @@ public class NadeSystemPlugin : BasePlugin
 
         var gtype = g.GrenadeType.ToLower();
 
-        // ── Round limit checks ─────────────────────────────────
+        // ── Inventory check ────────────────────────────────────
+        if (!BotHasGrenade(bot, gtype)) return;
+
+        // ── Round limit checks (team-wide, normal mode only) ───
         if (_botNadesMode == "normal")
         {
             int teamNum = bot.TeamNum;
@@ -556,35 +789,12 @@ public class NadeSystemPlugin : BasePlugin
         // The only two differences between more and normal modes are the round limit and the early smoke limit
         else if (_botNadesMode == "max" || _botNadesMode == "more")
         {
-            // no limits
+            // no team-wide limits
         }
 
-        // ── Account check ──────────────────────────────────────────────
-        var money = bot.InGameMoneyServices;
-        if (money == null) return;
-
-        bool isCT     = bot.TeamNum == (int)CsTeam.CounterTerrorist;
-        var costTable = isCT ? CostCT : CostT;
-        if (!costTable.TryGetValue(gtype, out int cost)) return;
-        if (money.Account < cost) return;
-
-        // ── Round spend cap check ──────────────────────────────────────
-        uint botIdx   = (uint)bot.Index;
-        bool isPoor   = _poorBots.Contains((uint)bot.Index);
-        int  spendCap = GetRoundSpendCap(isCT, isPoor);
-        if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent))
-            alreadySpent = 0;
-        // Expensure Limit
-        bool deductMoney = alreadySpent < spendCap;
+        if (!ConsumeBotGrenade(bot, gtype)) return;
 
         // ── All checks passed — commit ─────────────────────────────────
-        if (deductMoney)
-        {
-            money.Account -= cost;
-            Utilities.SetStateChanged(bot, "CCSPlayerController", "m_pInGameMoneyServices");
-            _roundSpendPerBot[botIdx] = alreadySpent + cost;
-        }
-
         _replayBots.Add((uint)bot.Index);
         RegisterCooldown(g.Id, gtype);
         IncrementCount(gtype, bot.TeamNum);
@@ -718,6 +928,11 @@ public class NadeSystemPlugin : BasePlugin
                 // ── SMOKE — native CSmokeGrenadeProjectile::Create() ───
                 if (gtype == "smoke")
                 {
+                    if (_smokeCreate == null)
+                    {
+                        Server.PrintToConsole("[NadeSystem] smoke native Create unavailable");
+                        return;
+                    }
                     var smoke = _smokeCreate.Invoke(
                         origin.Handle,
                         origin.Handle,
@@ -746,6 +961,11 @@ public class NadeSystemPlugin : BasePlugin
                 // ── HE — native CHEGrenadeProjectile::Create() ────────
                 if (gtype == "he")
                 {
+                    if (_heCreate == null)
+                    {
+                        Server.PrintToConsole("[NadeSystem] HE native Create unavailable");
+                        return;
+                    }
                     var he = _heCreate.Invoke(
                         origin.Handle,
                         origin.Handle,
@@ -773,6 +993,11 @@ public class NadeSystemPlugin : BasePlugin
                 // ── MOLOTOV — native CMolotovProjectile::Create() ─────
                 if (gtype is "molotov" or "incgrenade")
                 {
+                    if (_molotovCreate == null)
+                    {
+                        Server.PrintToConsole("[NadeSystem] molotov native Create unavailable");
+                        return;
+                    }
                     int molotovItemDef = (teamNum == (int)CsTeam.CounterTerrorist) ? 48 : 46;
                     
                     var molotov = _molotovCreate.Invoke(
@@ -919,6 +1144,7 @@ public class NadeSystemPlugin : BasePlugin
         _botFlashImmunityUntil.Clear();
         _molotovEscapeSmokeCooldown.Clear();
         _retaliationCooldown.Clear();
+        _grenadeBuyBotsRemaining = 0;
         // Save money for poor bots
         _poorBots.Clear();
         if (!IsPistolRound())
@@ -931,6 +1157,11 @@ public class NadeSystemPlugin : BasePlugin
                     _poorBots.Add((uint)bot.Index);
             }
         }
+
+        // Strip engine/default grenades and buy a capped loadout after other buy plugins run.
+        // Delay lets BotBuy finish first; work is staggered per bot inside ScheduleBotGrenadeLoadouts.
+        AddTimer(1.5f, ScheduleBotGrenadeLoadouts);
+
         return HookResult.Continue;
     }
 
@@ -1337,28 +1568,8 @@ public class NadeSystemPlugin : BasePlugin
                 && ((int)p.TeamNum == 2 || (int)p.TeamNum == 3)
                 && (int)p.TeamNum != bot.TeamNum);
         if (!hasLiveEnemy) return;
-
-        var money = bot.InGameMoneyServices;
-        if (money == null) return;
-
-        bool isCT     = bot.TeamNum == (int)CsTeam.CounterTerrorist;
-        var costTable = isCT ? CostCT : CostT;
-        if (!costTable.TryGetValue(gtype, out int cost)) return;
-        if (money.Account < cost) return;
-
-        uint botIdx  = (uint)bot.Index;
-        bool isPoor   = _poorBots.Contains((uint)bot.Index);
-        int  spendCap = GetRoundSpendCap(isCT, isPoor);
-        if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent))
-            alreadySpent = 0;
-        bool deduct = alreadySpent < spendCap;
-
-        if (deduct)
-        {
-            money.Account -= cost;
-            Utilities.SetStateChanged(bot, "CCSPlayerController", "m_pInGameMoneyServices");
-            _roundSpendPerBot[botIdx] = alreadySpent + cost;
-        }
+        if (!BotHasGrenade(bot, gtype)) return;
+        if (!ConsumeBotGrenade(bot, gtype)) return;
 
         var vel = velocity ?? new Vector(0f, 0f, 0f);
         Server.NextFrame(() =>
@@ -1372,6 +1583,7 @@ public class NadeSystemPlugin : BasePlugin
 
                 if (gtype == "smoke")
                 {
+                    if (_smokeCreate == null) return;
                     var smoke = _smokeCreate.Invoke(
                         spawnPos.Handle, spawnPos.Handle,
                         vel.Handle, vel.Handle,
@@ -1586,25 +1798,8 @@ public class NadeSystemPlugin : BasePlugin
                             g.LandingPosition.X, g.LandingPosition.Y, g.LandingPosition.Z);
             if (d > 200f) continue;
             if (IsOnCooldown(g.Id)) continue;
-
-            var money = victim.InGameMoneyServices;
-            if (money == null) continue;
-            bool isCT = victim.TeamNum == (int)CsTeam.CounterTerrorist;
-            var costTable = isCT ? CostCT : CostT;
-            if (!costTable.TryGetValue(gt, out int cost)) continue;
-            if (money.Account < cost) continue;
-
-            uint botIdx = (uint)victim.Index;
-            bool isPoor   = _poorBots.Contains(botIdx);
-            int spendCap = GetRoundSpendCap(isCT, isPoor);
-            if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent)) alreadySpent = 0;
-            bool deduct = alreadySpent < spendCap;
-            if (deduct)
-            {
-                money.Account -= cost;
-                Utilities.SetStateChanged(victim, "CCSPlayerController", "m_pInGameMoneyServices");
-                _roundSpendPerBot[botIdx] = alreadySpent + cost;
-            }
+            if (!BotHasGrenade(victim, gt)) continue;
+            if (!ConsumeBotGrenade(victim, gt)) continue;
 
             RegisterCooldown(g.Id, gt);
             SpawnProjectile(victim, g);
@@ -1622,6 +1817,7 @@ public class NadeSystemPlugin : BasePlugin
     {
         _tick++;
         if (_tick % 4   == 0) CheckBotZones();
+        if (_tick % 128 == 0) EnforceGrenadeLimitsForAll();
         if (_tick % 256 == 0) PruneCooldowns();
     }
 }
