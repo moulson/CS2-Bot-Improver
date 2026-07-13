@@ -14,3 +14,4 @@ addons/counterstrikesharp/plugins/RoundDamageRecap/obj/
 addons/counterstrikesharp/plugins/disabled/CS2_ExecAfter/obj/
 **/bin/
 **/obj/
+.gitignore

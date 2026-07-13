@@ -101,7 +101,7 @@ public class RoundCounter
 public class NadeSystemPlugin : BasePlugin
 {
     public override string ModuleName    => "NadeSystem";
-    public override string ModuleVersion => "1.1.5";
+    public override string ModuleVersion => "1.1.6";
     public override string ModuleAuthor  => "moulson";
 
     // grenades folder lives inside the plugin directory
@@ -261,6 +261,7 @@ public class NadeSystemPlugin : BasePlugin
     // These may need re-finding after CS2 updates.
 
     // Initialized in Load() so a signature miss does not abort plugin startup.
+    // Signatures from upstream (Windows + Linux, post 2026-07 updates).
     private static MemoryFunctionWithReturn<
         IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, int, CSmokeGrenadeProjectile>? _smokeCreate;
     private static MemoryFunctionWithReturn<
@@ -315,18 +316,21 @@ public class NadeSystemPlugin : BasePlugin
 
         try
         {
+            // CSmokeGrenadeProjectile::Create(pos, ang, vel, vel, owner, itemDef, team)
             _smokeCreate = new MemoryFunctionWithReturn<
                 IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, int, CSmokeGrenadeProjectile>(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                    ? @"55 4C 89 C1 48 89 E5 41 57 45 89 CF 41 56 49 89 FE"
+                    ? @"55 4C 89 C1 48 89 E5 41 57 49 89 FF 41 56 45 89 CE 41 55"
                     : @"48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 57 41 56 41 57 48 81 EC ? ? ? ? 48 8B B4 24 ? ? ? ? 4D 8B F8");
 
+            // CHEGrenadeProjectile::Create(pos, ang, vel, vel, owner, itemDef)
             _heCreate = new MemoryFunctionWithReturn<
                 IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CHEGrenadeProjectile>(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                    ? "55 4C 89 C1 48 89 E5 41 57 49 89 D7"
-                    : "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 50 48 8B AC 24 80 00 00 00 49 8B F8");
+                    ? "55 4C 89 C1 48 89 E5 41 57 49 89 FF 41 56 49 89 D6 48 89 F2 48 89 FE 41 55"
+                    : "48 89 ? 24 ? 48 89 ? 24 ? 48 89 ? 24 ? 57 48 83 EC ? 48 8B ? 24 ? 49 8B F8 4C 8B C2 0F 29 ? 24 ? 48 8B D1 48 8B D9 48 8D 0D ? ? ? ? 4C 8B CD E8 ? ? ? ? F3 0F 10 0D ? ? ? ? 48 8B C8 48 8B F0 E8 ? ? ? ? 48 8B D7 48 8B CE");
 
+            // CMolotovProjectile::Create(pos, ang, vel, vel, owner, itemDef)
             _molotovCreate = new MemoryFunctionWithReturn<
                 IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, int, CMolotovProjectile>(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Linux)

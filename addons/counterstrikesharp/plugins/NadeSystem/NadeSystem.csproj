@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.368" />
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.371" />
     <!-- Compile-time only; server provides shared/RayTraceApi/RayTraceApi.dll at runtime. -->
     <Reference Include="RayTraceApi">
       <HintPath>libs/RayTraceApi.dll</HintPath>

@@ -28,7 +28,7 @@ Aims to enhance your experience when playing against bots offline or with friend
 
    (If you run a dedicated server that is not only for bot matches, please download **CS2BotImprover_rules_unchanged.zip**)
 
-2. Put **Panel v1.4.0.exe** anywhere convenient
+2. Put **Panel v1.4.2.exe** anywhere convenient
 
 <img width="128" height="128" alt="App" src="https://github.com/user-attachments/assets/7271dc7d-2436-484b-8359-6531f4abd710" />
 
@@ -40,7 +40,7 @@ Aims to enhance your experience when playing against bots offline or with friend
 
 <img width="540" height="181" alt="snap_windows" src="https://github.com/user-attachments/assets/6a8645fc-78e7-4f3a-92d3-5d1b6d913918" />
 
-4. Open **Panel v1.4.0.exe**, select **Bot Mode**, then click **Launch CS2** 
+4. Open **Panel v1.4.2.exe**, select **Bot Mode**, then click **Launch CS2** 
 
 <img width="339" height="129" alt="Panel_1" src="https://github.com/user-attachments/assets/dc806991-c940-43cf-a614-f49012fae4a7" />
 
@@ -172,11 +172,19 @@ Select your desired mode, then click `Launch CS2`
 Click the <img width="31" height="32" alt="Settings" src="https://github.com/user-attachments/assets/7f94176b-79f1-4e22-9495-4589c4dea9eb" /> icon in the top-right corner to open `Settings`
 
 ### Commands
-Click `Commands`, type keywords to search, then click a block to auto-copy
+Click `Commands`, click a block to auto-copy, or type keywords to search
 
 <img width="350" height="420" alt="Screenshot 2026-06-14 090901" src="https://github.com/user-attachments/assets/957cfafb-900d-4450-b985-13d3e8efc375" />
 
 ## FAQ
+
+### How to play bot matches with friends
+
+1. Start a bot match and input the required commands. Then type `status` in the console  
+<img width="597" height="141" alt="snap_6" src="https://github.com/user-attachments/assets/792c4b4f-1d56-4a39-9186-b301cbff1846" />
+
+2. Copy the text after `steamid:`, add `connect ` before it (don’t forget the space between them)  
+3. Send the full command to your friends and have them paste it into their consoles
 
 ### How to manually change the difficulty level
 
@@ -202,14 +210,6 @@ After modification, if you wanna **play with bots again**, navigate to `game/csg
 
 1. Open the root of CS2 and navigate to `game/csgo/addons`  
 2. Rename the `BotHider` folder to `BotHider_disabled`  
-
-### How to play bot matches with friends
-
-1. Start a bot match and input the required commands. Then type `status` in the console  
-<img width="597" height="141" alt="snap_6" src="https://github.com/user-attachments/assets/792c4b4f-1d56-4a39-9186-b301cbff1846" />
-
-2. Copy the text after `steamid:`, add `connect ` before it (don’t forget the space between them)  
-3. Send the full command to your friends and have them paste it into their consoles
 
 ### How to run the plugin well on workshop maps
 
@@ -237,4 +237,4 @@ Run `sv_standable_normal 0.7` in your game console
 [Apple-Style-GUI](https://github.com/ed0ard/Apple-Style-GUI)  
 
 ## License
-GPL-3.0
+AGPL-3.0
