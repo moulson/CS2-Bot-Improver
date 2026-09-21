@@ -1,3 +1,6 @@
 **/bin/
 **/obj/
-.gitignore
+**/libs/*.dll
+**/libs/*.pdb
+**/Ray-Trace/
+addons/counterstrikesharp/plugins/NadeSystem/.vs/

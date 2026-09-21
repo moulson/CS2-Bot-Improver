@@ -38,29 +38,9 @@ public partial class NadeSystemPlugin : BasePlugin
                 && (int)p.TeamNum != bot.TeamNum);
         if (!hasLiveEnemy) return;
 
-        var money = bot.InGameMoneyServices;
-        if (money == null) return;
-
-        bool isCT     = bot.TeamNum == (int)CsTeam.CounterTerrorist;
-        var costTable = isCT ? CostCT : CostT;
-        if (!costTable.TryGetValue(gtype, out int cost)) return;
-        if (money.Account < cost) return;
-
-        uint botIdx  = (uint)bot.Index;
-        if (!HasLockedNadeMoney(botIdx, cost)) return;
-        bool isPoor   = _poorBots.Contains((uint)bot.Index);
-        int  spendCap = GetRoundSpendCap(isCT, isPoor);
-        if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent))
-            alreadySpent = 0;
-        bool deduct = alreadySpent < spendCap;
-
-        if (deduct)
-        {
-            money.Account -= cost;
-            Utilities.SetStateChanged(bot, "CCSPlayerController", "m_pInGameMoneyServices");
-            _roundSpendPerBot[botIdx] = alreadySpent + cost;
-        }
-        SpendLockedNadeMoney(botIdx, cost);
+        // Must hold a matching grenade (bought or picked up)
+        if (!BotHasGrenade(bot, gtype)) return;
+        if (!ConsumeBotGrenade(bot, gtype)) return;
 
         var vel = velocity ?? new Vector(0f, 0f, 0f);
         Server.NextFrame(() =>
@@ -318,15 +298,8 @@ public partial class NadeSystemPlugin : BasePlugin
                        g.ProjectilePosition.X, g.ProjectilePosition.Y, g.ProjectilePosition.Z))
             .ToList();
 
-        // Loop-invariant purchase context; GetRoundSpendCap walks the entity
-        // table for gamerules, so resolve it once instead of per candidate.
-        var money = victim.InGameMoneyServices;
-        if (money == null) return;
-        bool isCT     = victim.TeamNum == (int)CsTeam.CounterTerrorist;
-        var costTable = isCT ? CostCT : CostT;
-        uint botIdx   = (uint)victim.Index;
-        bool isPoor   = _poorBots.Contains(botIdx);
-        int  spendCap = GetRoundSpendCap(isCT, isPoor);
+        // Inventory + mode limits; money was charged at buy time.
+        uint botIdx = (uint)victim.Index;
 
         foreach (var g in candidates)
         {
@@ -334,21 +307,10 @@ public partial class NadeSystemPlugin : BasePlugin
 
             string gt = g.GrenadeType; // lowercase since LoadDb
 
-            if (!costTable.TryGetValue(gt, out int cost)) continue;
-            if (money.Account < cost) continue;
-            if (!HasLockedNadeMoney(botIdx, cost)) continue;
             // Less mode: enforce per-bot round limits (counts retaliation nades).
             if (_botNadesMode == "less" && !LessModeAllows(gt, botIdx)) continue;
-
-            if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent)) alreadySpent = 0;
-            bool deduct = alreadySpent < spendCap;
-            if (deduct)
-            {
-                money.Account -= cost;
-                Utilities.SetStateChanged(victim, "CCSPlayerController", "m_pInGameMoneyServices");
-                _roundSpendPerBot[botIdx] = alreadySpent + cost;
-            }
-            SpendLockedNadeMoney(botIdx, cost);
+            if (!BotHasGrenade(victim, gt)) continue;
+            if (!ConsumeBotGrenade(victim, gt)) continue;
 
             RegisterCooldown(g.Id, gt);
             SpawnProjectile(victim, g);

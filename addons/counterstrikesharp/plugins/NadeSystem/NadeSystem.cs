@@ -25,7 +25,7 @@ namespace NadeSystem;
 public partial class NadeSystemPlugin : BasePlugin
 {
     public override string ModuleName    => "NadeSystem";
-    public override string ModuleVersion => "1.2.1";
+    public override string ModuleVersion => "1.3.0";
     public override string ModuleAuthor  => "ed0ard & XBribo";
 
     // grenades folder lives inside the plugin directory
@@ -45,8 +45,9 @@ public partial class NadeSystemPlugin : BasePlugin
     private bool                  _roundOver         = false;
     private float                 _freezeEndTime     = 0f;
     private Dictionary<uint, int> _roundSpendPerBot  = new();
-    private Dictionary<uint, int> _roundNadeMoneyPerBot = new();
     private HashSet<uint>         _poorBots          = new();
+    // Bots still being stripped/bought during staggered buy-phase work
+    private int                   _grenadeBuyBotsRemaining = 0;
     // Information System
     private Dictionary<string, float> _probFailCooldown = new();
     // flash immunity
@@ -160,6 +161,22 @@ public partial class NadeSystemPlugin : BasePlugin
         ["molotov"]    = 500,
         ["incgrenade"] = 500,
         ["decoy"]      = 0,
+    };
+
+    // Per-bot carry limits for the round (pickups included)
+    private static readonly Dictionary<string, int> MaxGrenadesPerBot =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["flash"]   = 2,
+        ["smoke"]   = 1,
+        ["he"]      = 1,
+        ["molotov"] = 1,
+    };
+
+    private static readonly string[] AllGrenadeWeaponNames =
+    {
+        "weapon_flashbang", "weapon_smokegrenade", "weapon_hegrenade",
+        "weapon_molotov", "weapon_incgrenade",
     };
 
     // Character definition overrides for agents that use a non-default voice profile
