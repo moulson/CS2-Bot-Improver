@@ -73,6 +73,55 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
    <img width="130" height="153" alt="Opening CS2 properties in Steam" src="https://github.com/user-attachments/assets/4c775e36-3fc3-4a19-9cb1-4f0c9327838c" /><br>
    <img width="625" height="423" alt="Adding -insecure to the CS2 launch options" src="https://github.com/user-attachments/assets/ac0b0c57-ee67-4e33-96fb-146d14714fc8" />
 
+## Building compiled plugins (this fork)
+
+Upstream ships full game packages via [ed0ard Releases](https://github.com/ed0ard/CS2-Bot-Improver/releases/latest). This fork also builds **CounterStrikeSharp plugin DLLs** (especially NadeSystem) from source.
+
+### Prerequisites
+
+- [.NET SDK 10](https://dotnet.microsoft.com/download)
+- Git
+
+### Build
+
+```bash
+./scripts/bootstrap-raytrace.sh   # places RayTraceApi.dll under plugin libs/
+./scripts/build-plugins.sh        # builds active plugins under addons/counterstrikesharp/plugins/
+```
+
+Or build NadeSystem alone:
+
+```bash
+./scripts/bootstrap-raytrace.sh
+dotnet build addons/counterstrikesharp/plugins/NadeSystem/NadeSystem.csproj -c Release
+```
+
+CI (`.github/workflows/build-plugins.yml`) uploads:
+
+- `NadeSystem-net10.zip` — `NadeSystem.dll` + `grenades/`
+- `CS2-Bot-Improver-plugins.zip` — all successfully built plugin assemblies
+
+### Deploy NadeSystem to a server
+
+Copy into your CS2 `game/csgo` tree:
+
+| Path | Contents |
+| --- | --- |
+| `addons/counterstrikesharp/plugins/NadeSystem/NadeSystem.dll` | Built plugin |
+| `addons/counterstrikesharp/plugins/NadeSystem/grenades/` | Lineup JSON |
+| `addons/counterstrikesharp/shared/RayTraceApi/RayTraceApi.dll` | **Required** shared API (from [Ray-Trace](https://github.com/FUNPLAY-pro-CS2/Ray-Trace)) |
+| `addons/counterstrikesharp/plugins/RayTraceImpl/` | Ray-Trace CSS plugin (once) |
+
+A native `RayTrace.dll` / Metamod binary alone is **not** enough — CounterStrikeSharp needs the managed `RayTraceApi.dll` under `shared/`.
+
+### Syncing with upstream
+
+```bash
+git remote add upstream https://github.com/ed0ard/CS2-Bot-Improver.git   # once
+git fetch upstream
+git merge upstream/main   # or rebase onto a sync branch before feature work
+```
+
 ## Commands
 
 ### Aim
@@ -94,6 +143,8 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 | `bot_nades more` | Use the same decision logic as normal mode with higher count limits. |
 | `bot_nades max` | Bots have minimal limitations and think less before throwing nades. |
 | `bot_nades` | Show the current nade mode. |
+
+Bots must **buy** grenades (or pick them up) and can only throw types they currently hold. Carry caps per bot per round: **2 flash**, **1 smoke**, **1 HE**, **1 molotov/incendiary**. Mode limits (`normal` / `less` / etc.) still apply on top of inventory.
 
 ### Skins
 

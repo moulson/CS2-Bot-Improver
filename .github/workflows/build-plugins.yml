@@ -1,0 +1,69 @@
+name: Build plugins
+
+on:
+  push:
+    branches: [main, "cursor/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Bootstrap RayTraceApi
+        run: ./scripts/bootstrap-raytrace.sh
+
+      - name: Build NadeSystem
+        run: dotnet build addons/counterstrikesharp/plugins/NadeSystem/NadeSystem.csproj -c Release --nologo
+
+      - name: Build all active plugins
+        run: ./scripts/build-plugins.sh Release
+        continue-on-error: true
+
+      - name: Package NadeSystem
+        run: |
+          set -euo pipefail
+          OUT=artifacts/NadeSystem
+          mkdir -p "$OUT"
+          cp addons/counterstrikesharp/plugins/NadeSystem/bin/Release/net10.0/NadeSystem.dll "$OUT/"
+          cp -r addons/counterstrikesharp/plugins/NadeSystem/grenades "$OUT/"
+          mkdir -p artifacts
+          (cd artifacts && zip -r NadeSystem-net10.zip NadeSystem)
+
+      - name: Package all built plugins
+        run: |
+          set -euo pipefail
+          ROOT=artifacts/plugins
+          mkdir -p "$ROOT"
+          for plugin_dir in addons/counterstrikesharp/plugins/*/; do
+            name="$(basename "$plugin_dir")"
+            [[ "$name" == "disabled" ]] && continue
+            dll="$(find "$plugin_dir/bin/Release" -maxdepth 2 -name "${name}.dll" 2>/dev/null | head -1 || true)"
+            [[ -n "$dll" && -f "$dll" ]] || continue
+            mkdir -p "$ROOT/$name"
+            cp "$dll" "$ROOT/$name/"
+            if [[ -d "$plugin_dir/grenades" ]]; then
+              cp -r "$plugin_dir/grenades" "$ROOT/$name/"
+            fi
+          done
+          (cd artifacts && zip -r CS2-Bot-Improver-plugins.zip plugins)
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-plugins
+          path: |
+            artifacts/NadeSystem-net10.zip
+            artifacts/CS2-Bot-Improver-plugins.zip
+          if-no-files-found: error

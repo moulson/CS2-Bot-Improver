@@ -80,43 +80,25 @@ public partial class NadeSystemPlugin : BasePlugin
         // The only two differences between more and normal modes are the round limit and the early smoke limit
         else if (_botNadesMode == "max" || _botNadesMode == "more")
         {
-            // no limits
+            // no team-wide limits
         }
 
-        // ── Account check ──────────────────────────────────────────────
-        var money = bot.InGameMoneyServices;
-        if (money == null) return;
-
-        bool isCT     = bot.TeamNum == (int)CsTeam.CounterTerrorist;
-        var costTable = isCT ? CostCT : CostT;
-        if (!costTable.TryGetValue(gtype, out int cost)) return;
-        if (money.Account < cost) return;
-
-        // ── Round spend cap check ──────────────────────────────────────
-        uint botIdx   = (uint)bot.Index;
-        if (!HasLockedNadeMoney(botIdx, cost)) return;
-        bool isPoor   = _poorBots.Contains((uint)bot.Index);
-        int  spendCap = GetRoundSpendCap(isCT, isPoor);
-        if (!_roundSpendPerBot.TryGetValue(botIdx, out int alreadySpent))
-            alreadySpent = 0;
-        // Expensure Limit
-        bool deductMoney = alreadySpent < spendCap;
+        // ── Inventory check (decoy lineups do not require a held decoy) ─
+        if (gtype != "decoy")
+        {
+            if (!BotHasGrenade(bot, gtype)) return;
+            if (!ConsumeBotGrenade(bot, gtype)) return;
+        }
 
         // ── All checks passed — commit ─────────────────────────────────
-        if (deductMoney)
-        {
-            money.Account -= cost;
-            Utilities.SetStateChanged(bot, "CCSPlayerController", "m_pInGameMoneyServices");
-            _roundSpendPerBot[botIdx] = alreadySpent + cost;
-        }
-        SpendLockedNadeMoney(botIdx, cost);
+        uint botIdx = (uint)bot.Index;
 
-        _replayBots.Add((uint)bot.Index);
+        _replayBots.Add(botIdx);
         RegisterCooldown(g.Id, gtype);
         IncrementCount(gtype, bot.TeamNum);
         // Less mode: per-bot round count
         if (_botNadesMode == "less")
-            IncrementBotCount(gtype, (uint)bot.Index);
+            IncrementBotCount(gtype, botIdx);
         // Normal/Less Mode early smoke limit
         if ((_botNadesMode == "normal" || _botNadesMode == "less") && gtype == "smoke"
             && _freezeEndTime > 0f && Server.CurrentTime - _freezeEndTime < 5f)
@@ -127,7 +109,7 @@ public partial class NadeSystemPlugin : BasePlugin
         SpawnProjectile(bot, g);
 
         // Allow bot to throw another grenade after this window
-        AddTimer(1f, () => _replayBots.Remove((uint)bot.Index));
+        AddTimer(1f, () => _replayBots.Remove(botIdx));
     }
 
     // * Creates a grenade projectile with the recorded position and velocity
